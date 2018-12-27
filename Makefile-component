@@ -18,6 +18,9 @@ STYLE_FILES = word-def.xsl drum-interface.xsl parser-interface.xsl parser-interf
 OTHER_WWW_FILES = trips-parser-output.dtd ../Parser/docs/LF\ Documentation.pdf api.html
 
 install:: $(CGI_FILES) $(STYLE_FILES) $(OTHER_WWW_FILES)
+	echo "HELLOOOOOOOOO"
+	echo $(WWW_DIR)
+	echo "HELLOOOOOOOOO"
 	$(MKINSTALLDIRS) $(WWW_DIR) $(CGI_DIR) $(STYLE_DIR)
 	$(INSTALL_PROGRAM) $(CGI_FILES) $(CGI_DIR)
 	mv $(CGI_DIR)/dot-htaccess $(CGI_DIR)/.htaccess
