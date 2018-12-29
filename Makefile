@@ -1,28 +1,60 @@
-#
-# Makefile for WebParser
-#
-# George Ferguson, ferguson@cs.rochester.edu, 6 Jul 2006
-# Time-stamp: <Thu Jul  6 17:32:21 EDT 2006 ferguson>
-#
+# Makefile for WebParser as a TRIPS component
 
-WWW_DIR ?= /home/vagrant/shared/step/www
+NAME = WebParser
+DEFSYS = defsys.lisp
+SYSTEM = :webparser
 
 CONFIGDIR=../config
-include $(CONFIGDIR)/version.mk
-include $(CONFIGDIR)/defs.mk
+include $(CONFIGDIR)/lisp/lib.mk
 include $(CONFIGDIR)/Graphviz/defs.mk
-include $(CONFIGDIR)/lisp/defs.mk
-include $(CONFIGDIR)/lisp/$(LISP_FLAVOR)/defs.mk
 
-# get rid of --no-userinit, because I use mine to make compilation less
-# verbose, and I want it to still apply when cron sends me the output of
-# update-web-tools.sh in an email -- wdebeaum
-LISPCMD:=$(filter-out --no-userinit,$(LISPCMD))
+WWW_DIR = $(prefix)/www
+CGI_DIR = $(WWW_DIR)/cgi
+STYLE_DIR = $(WWW_DIR)/style
+ETC_STYLE_DIR = $(etcdir)/style
 
-all: web-parser-xml.image trips-parser-output.dtd
+CGI_FILES = dot-htaccess cgi-kqml-bridge.pl ../KQML/KQML.pm dot-to-svg.pl
+STYLE_FILES = word-def.xsl drum-interface.xsl parser-interface.xsl parser-interface.js parser-interface.css tree-to-lisp.xsl tree-to-LinGO.xsl tree-to-dot.xsl lf-to-html.xsl lf-to-amr.xsl lf-to-dot.xsl tags-to-table.xsl exts-to-table.xsl exts-to-rdf.xsl ekb-to-dot.xsl exslt/str.replace.template.xsl exslt/str.tokenize.template.xsl
+OTHER_WWW_FILES = trips-parser-output.dtd ../Parser/docs/LF\ Documentation.pdf api.html
 
-web-parser-xml.image: web-parser-xml.lisp parse-to-xml.lisp tree-to-xml.lisp lf-to-rdf.lisp
-	$(call dump-image,web-parser-xml.lisp,web-parser-xml.image,webparser::run-cgi)
+install:: $(CGI_FILES) $(STYLE_FILES) $(OTHER_WWW_FILES)
+	echo "HELLOOOOOOOOO"
+	echo $(WWW_DIR)
+	echo "HELLOOOOOOOOO"
+	$(MKINSTALLDIRS) $(WWW_DIR) $(CGI_DIR) $(STYLE_DIR)
+	$(INSTALL_PROGRAM) $(CGI_FILES) $(CGI_DIR)
+	mv $(CGI_DIR)/dot-htaccess $(CGI_DIR)/.htaccess
+	rm -f $(CGI_DIR)/cgi-kqml-bridge.pl
+	./install-cgi.pl $(CGI_DIR) parse
+	./install-cgi.pl $(CGI_DIR) get-word-def
+	for d in ../Systems/* ; do \
+	  if [ -d $$d -a $$d != "../Systems/core" -a $$d != "../Systems/CVS" ] ; then \
+	    ./install-cgi.pl $(CGI_DIR) `basename $$d` || exit 1 ; \
+	  fi ; \
+	done
+	$(INSTALL_DATA) $(STYLE_FILES) $(STYLE_DIR)
+	$(INSTALL_DATA) $(OTHER_WWW_FILES) $(WWW_DIR)
+
+# some style files may be installed independently of the others, as they can be
+# useful for other purposes; these are installed in ($etcdir)/style/.
+EKB_STYLE_FILES = ekb-to-dot.xsl exts-to-rdf.xsl lf-to-dot.xsl exslt/str.replace.template.xsl
+install-ekb-style: ${EKB_STYLE_FILES}
+	$(MKINSTALLDIRS) $(ETC_STYLE_DIR)
+	$(INSTALL_DATA) $(EKB_STYLE_FILES) $(ETC_STYLE_DIR)
+
+dot-htaccess:
+	( case `hostname` in \
+	    b01.cs.rochester.edu) ;; \
+	    *) echo 'Options ExecCGI' ;; \
+	  esac ; \
+	  echo 'SetHandler cgi-script' \
+	) >$@
+
+dot-to-svg.pl: dot-to-svg.pl.in
+	sed -e 's@DOT_LIB_DIR@$(DOT_LIB_DIR)@g' \
+	    -e 's@DOT_BIN_DIR@$(DOT_BIN_DIR)@g' \
+	    -e 's@DOT_TO_SVG_CMD@|ccomps -x |dot |gvpack -array1 |neato -Tsvg -n2@g' \
+	    $< >$@
 
 trips-parser-output.dtd: make-dtd.lisp
 	case "$(LISP_FLAVOR)" in \
@@ -47,54 +79,6 @@ trips-parser-output.dtd: make-dtd.lisp
 	    ;; \
 	esac
 
-install: install-cgi install-dtd install-style install-docs
-
-install-cgi: dot-htaccess web-parser-xml.cgi dot-to-svg.pl install-image
-	chmod a+x web-parser-xml.cgi dot-to-svg.pl
-	mkdir -p $(WWW_DIR)/cgi
-	touch $(WWW_DIR)/cgi/web-parser.log
-	chmod a+w $(WWW_DIR)/cgi/web-parser.log
-	$(INSTALL_DATA) dot-htaccess $(WWW_DIR)/cgi/.htaccess
-	$(INSTALL_PROGRAM) web-parser-xml.cgi $(WWW_DIR)/cgi
-	$(INSTALL_PROGRAM) dot-to-svg.pl $(WWW_DIR)/cgi
-
-dot-htaccess:
-	  echo 'Options ExecCGI' > $@
-
-dot-to-svg.pl: dot-to-svg.pl.in
-	sed -e 's@DOT_LIB_DIR@$(DOT_LIB_DIR)@g' \
-	    -e 's@DOT_BIN_DIR@$(DOT_BIN_DIR)@g' \
-	    -e 's@DOT_TO_SVG_CMD@|dot -Tsvg@g' \
-	    $< >$@
-
-install-image: web-parser-xml.image
-	mkdir -p $(WWW_DIR)/etc/lisp
-	$(INSTALL_DATA) web-parser-xml.image $(WWW_DIR)/etc/lisp/
-
-install-dtd: trips-parser-output.dtd
-	$(INSTALL_DATA) trips-parser-output.dtd $(WWW_DIR)/
-
-install-docs: ../Parser/docs/LF\ Documentation.pdf api.html
-	$(INSTALL_DATA) ../Parser/docs/LF\ Documentation.pdf $(WWW_DIR)/
-	$(INSTALL_DATA) api.html $(WWW_DIR)/
-
-install-style: parser-interface.xsl parser-interface.js parser-interface.css tree-to-lisp.xsl tree-to-LinGO.xsl tree-to-dot.xsl lf-to-html.xsl lf-to-amr.xsl lf-to-dot.xsl tags-to-table.xsl exts-to-table.xsl exslt/str.replace.template.xsl exslt/str.tokenize.template.xsl
-	mkdir -p $(WWW_DIR)/style
-	$(INSTALL_DATA) parser-interface.xsl $(WWW_DIR)/style/
-	$(INSTALL_DATA) parser-interface.js $(WWW_DIR)/style/
-	$(INSTALL_DATA) parser-interface.css $(WWW_DIR)/style/
-	$(INSTALL_DATA) tree-to-lisp.xsl $(WWW_DIR)/style/
-	$(INSTALL_DATA) tree-to-LinGO.xsl $(WWW_DIR)/style/
-	$(INSTALL_DATA) tree-to-dot.xsl $(WWW_DIR)/style/
-	$(INSTALL_DATA) lf-to-html.xsl $(WWW_DIR)/style/
-	$(INSTALL_DATA) lf-to-amr.xsl $(WWW_DIR)/style/
-	$(INSTALL_DATA) lf-to-dot.xsl $(WWW_DIR)/style/
-	$(INSTALL_DATA) tags-to-table.xsl $(WWW_DIR)/style/
-	$(INSTALL_DATA) exts-to-table.xsl $(WWW_DIR)/style/
-	$(INSTALL_DATA) exts-to-rdf.xsl $(WWW_DIR)/style/
-	$(INSTALL_DATA) exslt/str.replace.template.xsl $(WWW_DIR)/style/
-	$(INSTALL_DATA) exslt/str.tokenize.template.xsl $(WWW_DIR)/style/
-
-clean:
-	rm -f web-parser-xml.image trips-parser-output.dtd dot-to-svg.pl dot-htaccess
+clean::
+	rm -f trips-parser-output.dtd dot-to-svg.pl
 
