@@ -5,7 +5,7 @@
 # Time-stamp: <Thu Jul  6 17:32:21 EDT 2006 ferguson>
 #
 
-WWW_DIR ?= /u/www/research/trips/parser
+WWW_DIR ?= /home/vagrant/shared/step/www
 
 CONFIGDIR=../config
 include $(CONFIGDIR)/version.mk
